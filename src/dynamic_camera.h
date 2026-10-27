@@ -37,7 +37,6 @@ struct DynamicCamera {
                 const sf::Vector2f& trackedPosWorld,      // world coords of player to track
                 const sf::Vector2f& trackedVelocityWorld  // world velocity of player to track
     ) {
-        // TODO: (HINTS/outline)
         // collect statistics on the player position and velocity in (normalized, if you like)
         // window coordinates. Compute lookAhead distance in world coords, adjusting for
         // if the player is moving left or right.
@@ -47,6 +46,31 @@ struct DynamicCamera {
         // lookahead) appropriately. Next,
         // set the camera center by offsetting the cameraUnadjustedCenter, combining lookAhead.
         // Finally update cameraUnadjustedCenter, but without lookahead.
+        float dir = (trackedVelocityWorld.x > 0) - (trackedVelocityWorld.x < 0);
+        float look_ahead_world = camera.windowPercentToWorldDist({lookAhead, 0}).x;
+
+        float look_target = dir * look_ahead_world;
+
+        lookaheadState += alpha * (look_target - lookaheadState); // EMA
+
+        camera.setCameraCenter(cameraUnadjustedCenter);
+        float player = camera.worldToWindowPercent(trackedPosWorld).x;
+        float delta = 0.f;
+
+        if (player < deadZoneX.min) { delta = alpha * (player - deadZoneX.min); }
+        else if (player > deadZoneX.max) { delta = alpha * (player - deadZoneX.max); }
+
+        // Hard Zone
+        float p_delta = player - delta;
+
+        if (p_delta < softZoneX.min) { delta += p_delta - softZoneX.min; }
+        else if (p_delta > softZoneX.max) { delta += p_delta - softZoneX.max; }
+
+        float dWorld = camera.windowPercentToWorldDist({delta, 0}).x;
+        const sf::Vector2f n{cameraUnadjustedCenter.x + dWorld, cameraUnadjustedCenter.y};
+
+        camera.setCameraCenter({n.x + lookaheadState, n.y});
+        cameraUnadjustedCenter = n;
     }
 
     float alpha;  // alpha to use for damping of camera position, *as well as* for smoothing of
